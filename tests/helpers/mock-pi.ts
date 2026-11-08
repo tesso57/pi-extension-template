@@ -1,3 +1,4 @@
+import { SessionManager } from "@earendil-works/pi-coding-agent";
 import type { ExtensionAPI, ExtensionCommandContext, ExtensionContext } from "@earendil-works/pi-coding-agent";
 
 type Command = Parameters<ExtensionAPI["registerCommand"]>[1];
@@ -14,6 +15,12 @@ export function createMockPi(responses: Responses = {}) {
   const commands = new Map<string, Command>();
   const tools = new Map<string, Tool>();
   const events = new Map<string, EventHandler[]>();
+  const sessionManager = SessionManager.inMemory(process.cwd());
+  const dialogs: ({ kind: "select"; title: string; options: string[] } | { kind: "input"; title: string; placeholder?: string } | { kind: "confirm"; title: string; message: string })[] = [];
+  const statuses = new Map<string, string>();
+  const widgets = new Map<string, string[]>();
+  const userMessages: { content: Parameters<ExtensionAPI["sendUserMessage"]>[0]; options: Parameters<ExtensionAPI["sendUserMessage"]>[1] }[] = [];
+  const messages: { message: Parameters<ExtensionAPI["sendMessage"]>[0]; options: Parameters<ExtensionAPI["sendMessage"]>[1] }[] = [];
   const notifications: { message: string; type: string }[] = [];
   const queues = {
     confirm: [...(responses.confirm ?? [])],
@@ -26,16 +33,27 @@ export function createMockPi(responses: Responses = {}) {
     return queue.shift() as (typeof queues)[K][number];
   }
   const context = {
+    cwd: process.cwd(),
+    sessionManager,
     hasUI: true,
     mode: "tui",
     ui: {
       notify(message: string, type = "info") { notifications.push({ message, type }); },
-      async confirm() { return take("confirm"); },
-      async input() { return take("input"); },
-      async select() { return take("select"); },
+      async confirm(title: string, message: string) { dialogs.push({ kind: "confirm", title, message }); return take("confirm"); },
+      async input(title: string, placeholder?: string) { dialogs.push({ kind: "input", title, placeholder }); return take("input"); },
+      async select(title: string, options: string[]) { dialogs.push({ kind: "select", title, options: [...options] }); return take("select"); },
+      setStatus(key: string, text: string | undefined) { if (text === undefined) statuses.delete(key); else statuses.set(key, text); },
+      setWidget(key: string, content: string[] | undefined) {
+        if (content === undefined) widgets.delete(key);
+        else if (Array.isArray(content)) widgets.set(key, [...content]);
+        else throw new Error("Component widgets are not supported by the mock");
+      },
     },
   } as unknown as ExtensionCommandContext;
   const pi = {
+    appendEntry(customType: string, data?: unknown) { sessionManager.appendCustomEntry(customType, data); },
+    sendUserMessage(content: Parameters<ExtensionAPI["sendUserMessage"]>[0], options?: Parameters<ExtensionAPI["sendUserMessage"]>[1]) { userMessages.push({ content, options }); },
+    sendMessage(message: Parameters<ExtensionAPI["sendMessage"]>[0], options?: Parameters<ExtensionAPI["sendMessage"]>[1]) { messages.push({ message, options }); },
     registerCommand(name: string, command: Command) { commands.set(name, command); },
     registerTool(tool: Tool) { tools.set(tool.name, tool); },
     on(name: string, handler: EventHandler) {
@@ -49,7 +67,7 @@ export function createMockPi(responses: Responses = {}) {
     },
   } as unknown as ExtensionAPI;
   return {
-    pi, context, commands, tools, notifications,
+    pi, context, commands, tools, notifications, dialogs, statuses, widgets, userMessages, messages, responses: queues,
     async runCommand(name: string, args = "") {
       const command = commands.get(name);
       if (!command) throw new Error(`Unknown command: ${name}`);
