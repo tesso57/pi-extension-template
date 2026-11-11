@@ -1,3 +1,4 @@
+import { deferred } from "./helpers/deferred.ts";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { createMockPi } from "./helpers/mock-pi.ts";
@@ -70,4 +71,63 @@ test("records user and custom messages without starting agent turns", () => {
   mock.pi.sendMessage({ customType: "result", content: "done", display: true }, { triggerTurn: true });
   assert.deepEqual(mock.userMessages, [{ content: "answer", options: { deliverAs: "steer" } }]);
   assert.deepEqual(mock.messages, [{ message: { customType: "result", content: "done", display: true }, options: { triggerTurn: true } }]);
+});
+
+test("dialog replies can wait, and abort dismisses a pending dialog", async () => {
+  const pendingSelection = deferred<string | undefined>();
+  const mock = createMockPi({ select: [pendingSelection.promise] });
+  const controller = new AbortController();
+  const answer = mock.context.ui.select("Select", ["A"], { signal: controller.signal });
+  controller.abort();
+  assert.equal(await answer, undefined);
+  pendingSelection.resolve("A");
+  const pendingInput = deferred<string | undefined>();
+  mock.responses.input.push(pendingInput.promise);
+  const input = mock.context.ui.input("input");
+  pendingInput.resolve("answer");
+  assert.equal(await input, "answer");
+});
+
+test("event context can be overridden and in-memory sessions support branches", async () => {
+  const mock = createMockPi();
+  const sessionManager = mock.sessionManager;
+  mock.pi.appendEntry("state", 1);
+  const base = sessionManager.getBranch().at(-1)!;
+  mock.pi.appendEntry("state", 2);
+  sessionManager.branch(base.id);
+  mock.pi.appendEntry("state", 3);
+  const values = sessionManager.getBranch().filter(e => e.type === "custom").map(e => e.data);
+  assert.deepEqual(values, [1, 3]);
+  let cwd = "";
+  mock.pi.on("session_start", (_event, ctx) => { cwd = ctx.cwd; });
+  await mock.emit("session_start", { type: "session_start" }, { ...mock.context, cwd: "/other" });
+  assert.equal(cwd, "/other");
+});
+
+test("records tool renderers and supports event bus and configurable activity", () => {
+  const mock = createMockPi();
+  mock.setIdle(false);
+  mock.setPending(true);
+  assert.equal(mock.context.isIdle(), false);
+  assert.equal(mock.context.hasPendingMessages(), true);
+  const received: unknown[] = [];
+  mock.pi.events.on("changed", value => received.push(value));
+  mock.pi.events.emit("changed", { id: 1 });
+  assert.deepEqual(received, [{ id: 1 }]);
+  assert.deepEqual(mock.emittedEvents, [{ name: "changed", data: { id: 1 } }]);
+  const renderer: Parameters<typeof mock.pi.registerToolRenderer>[0] = () => undefined;
+  mock.pi.registerToolRenderer(renderer);
+  assert.deepEqual(mock.toolRenderers, [renderer]);
+});
+
+test("already-aborted dialogs return cancellation without consuming queued responses", async () => {
+  const mock = createMockPi({ confirm: [true], input: ["answer"], select: ["A"] });
+  const controller = new AbortController();
+  controller.abort();
+  assert.equal(await mock.context.ui.confirm("title", "message", { signal: controller.signal }), false);
+  assert.equal(await mock.context.ui.input("title", undefined, { signal: controller.signal }), undefined);
+  assert.equal(await mock.context.ui.select("title", ["A"], { signal: controller.signal }), undefined);
+  assert.equal(await mock.context.ui.confirm("title", "message"), true);
+  assert.equal(await mock.context.ui.input("title"), "answer");
+  assert.equal(await mock.context.ui.select("title", ["A"]), "A");
 });

@@ -46,13 +46,15 @@ await mock.runCommand("hello", "arguments");
 assert.deepEqual(mock.notifications, [{ message: "Hello from your Pi extension!", type: "info" }]);
 ```
 
-`mock.commands` と `mock.tools` から登録内容を取得できます。`mock.dialogs` はダイアログの内容を、`mock.statuses` と `mock.widgets` は表示中の値を保持します。`mock.responses.select.push("A")` のように、作成後も回答を追加できます。`mock.userMessages` と `mock.messages` は送信要求を記録しますが、エージェントのターンは開始しません。`pi.appendEntry` は Pi のインメモリ `sessionManager` に記録します。`mock.emit("session_start", { type: "session_start" })` は登録順にイベントハンドラーを実行し、戻り値の配列を返します。`mock.context` はハンドラーやツールを直接呼び出すときに使えます。ダイアログの回答は種類ごとに指定順で消費され、回答が不足するとエラーになります。各テストで `createMockPi()` を呼び、状態を分離してください。
+`mock.commands` と `mock.tools` から登録内容を取得できます。`mock.dialogs` はダイアログの内容を、`mock.statuses` と `mock.widgets` は表示中の値を保持します。`mock.responses.select.push("A")` のように、作成後も回答を追加できます。`mock.userMessages` と `mock.messages` は送信要求を記録しますが、エージェントのターンは開始しません。`pi.appendEntry` は Pi のインメモリ `sessionManager` に記録します。`mock.emit("session_start", { type: "session_start" })` は登録順にイベントハンドラーを実行し、戻り値の配列を返します。`mock.context` はハンドラーやツールを直接呼び出すときに使えます。ダイアログの回答は種類ごとに指定順で消費され、回答が不足するとエラーになります。`mock.sessionManager` は分岐操作にも使えます。`mock.emit(name, event, context)` に context を渡すとイベントごとに変更できます。`mock.setIdle()`・`mock.setPending()`、`mock.emittedEvents`、`mock.toolRenderers` で状態や登録を検証できます。各テストで `createMockPi()` を呼び、状態を分離してください。
+
+ダイアログの回答には `Promise` も指定できます。待機中に `AbortSignal` が中断されると、選択・入力は `undefined`、確認は `false` を返します。タイムアウトや実際の UI の描画は再現しません。
 
 このヘルパーは Pi API の一部だけを模擬します。ウィジェットは文字列配列のみ対応し、コンポーネント描画やツールのスキーマ検証、メッセージ送信後のエージェント動作は再現しません。必要な API をテストに合わせて追加し、Pi 本体への読み込みも別途確認してください。
 
 ### モデル応答のフェイク
 
-`tests/helpers/fake-model.ts` の `createFakeModel()` は、実際の Pi セッションに接続するテスト向けです。テキストやツール呼び出しを順に返し、プロバイダーへのネットワーク呼び出しは行いません。応答が足りない場合はエラーになります。
+`tests/helpers/fake-model.ts` の `createFakeModel()` は、実際の Pi セッションに接続するテスト向けです。テキストやツール呼び出しを順に返し、プロバイダーへのネットワーク呼び出しは行いません。応答が足りない場合はエラーになります。スクリプトとリクエストは複製するため、元のオブジェクトへの後からの変更は記録に影響しません。
 
 ```ts
 const fake = createFakeModel([
@@ -64,7 +66,7 @@ await session.prompt("Say hello");
 assert.equal(fake.requests.length, 1);
 ```
 
-セッションの生成と後片付けを含む例や、ツールを呼ぶ例は `tests/fake-model.test.ts` を参照してください。これは完了した応答を返す簡易フェイクであり、逐次ストリーミング、プロバイダーエラー、通信や認証を検証するものではありません。
+セッションの生成と後片付けを含む例や、ツールを呼ぶ例は `tests/fake-model.test.ts` を参照してください。各応答に `waitFor: promise` を指定すると、その Promise が解決するまで応答を保留できます。待機中の `AbortSignal` も処理します。これは簡易フェイクであり、逐次ストリーミングや実際のプロバイダーの通信・認証は再現しません。
 
 ## インストール
 
