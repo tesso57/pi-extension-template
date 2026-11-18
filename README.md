@@ -33,7 +33,7 @@ npm test
 npm run check:package
 ```
 
-テストは Node.js の組み込みテストランナーを使います。`tests/pi-smoke.test.ts` は Pi 本体のリソースローダーで extension を読み込み、`/hello` の登録を確認します。LLM やユーザーの Pi 設定には接続せず、一時ディレクトリを使います。サンプルコマンドを変更したら、このテストの期待値も更新してください。Pi の API やイベントについては [公式 extension ドキュメント](https://github.com/badlogic/pi-mono/blob/main/packages/coding-agent/docs/extensions.md) を参照してください。
+テストは Node.js の組み込みテストランナーを使います。`tests/pi-smoke.test.ts` は Pi 本体のリソースローダーで extension を読み込み、`/hello` の登録を確認します。LLM やユーザーの Pi 設定には接続せず、一時ディレクトリを使います。配布時の起動確認は `npm run test:startup` で実行できます。`npm run check:package` と CI でも、作成した tarball を一時環境の設定に登録し、実際の Pi CLI をオフラインの RPC モードで起動します。パッケージ警告、読み込み失敗、期待するコマンドの登録漏れがあれば失敗します。サンプルを変更したら、ローダーテストと `package.json` の `test:startup` に記載したコマンド名を更新してください。Pi の API やイベントについては [公式 extension ドキュメント](https://github.com/badlogic/pi-mono/blob/main/packages/coding-agent/docs/extensions.md) を参照してください。
 
 ### テストヘルパー
 
