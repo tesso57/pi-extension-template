@@ -3,7 +3,6 @@ import type { AssistantMessage, Model, StreamFunction, TranscriptContext } from 
 
 type Reply = { content: AssistantMessage["content"]; stopReason?: "stop" | "toolUse"; waitFor?: Promise<void> };
 
-/** Scripted responses for real Pi sessions; it never contacts a provider. */
 export function createFakeModel(script: Reply[]) {
   const replies = script.map(reply => ({ ...reply, content: structuredClone(reply.content) }));
   const requests: TranscriptContext[] = [];
