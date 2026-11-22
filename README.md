@@ -1,31 +1,31 @@
 # Pi extension template
 
-[Pi coding agent](https://github.com/badlogic/pi-mono) の TypeScript extension を作るためのテンプレートです。サンプルの `/hello` コマンドは通知を表示します。
+A TypeScript extension template for the [Pi coding agent](https://github.com/badlogic/pi-mono). The sample `/hello` command displays a notification.
 
-## はじめる
+## Getting started
 
-1. このテンプレートからリポジトリを作成し、`package.json` の `name`、`description`、`version` を変更します。必要に応じてライセンスと著作権表示も変更してください。
-2. Node.js 26.13.0（LTS）と Pi を用意し、`npm ci` を実行します。nvm を使う場合は `nvm install` と `nvm use` で `.nvmrc` のバージョンを利用できます。
-3. 次のコマンドで Pi を起動し、`/hello` を実行します。
+1. Create a repository from the template. Update `name`, `description`, and `version` in `package.json`. Adjust the license and copyright notice if needed.
+2. Install Node.js 26.13.0 (LTS) and Pi, then run `npm ci`. With nvm, use `nvm install` and `nvm use` to select the version in `.nvmrc`.
+3. Start Pi with the following command and run `/hello`.
 
    ```sh
    pi -e ./extensions/index.ts
    ```
 
-4. `extensions/index.ts` を編集し、サンプルコマンドを実装に置き換えます。エントリーポイントを変更した場合は `package.json` の `pi.extensions` も更新してください。
+4. Replace the sample command in `extensions/index.ts`. If you change the entry point, update `pi.extensions` in `package.json`.
 
-### 複製後のチェックリスト
+### After copying the template
 
-- [ ] `package.json` の名前、説明、バージョンを更新する。
-- [ ] ライセンスと `LICENSE` の著作権表示を確認する。
-- [ ] サンプルコマンドとテストを実装に合わせて変更する。
-- [ ] README に対応・動作確認した Pi のバージョンと使い方を記載する。
-- [ ] リポジトリ URL や公開設定を確認し、必要なファイルを `package.json` の `files` と `pi.extensions` に含める。
-- [ ] 依存関係を変更したら `npm install` で lockfile を更新する。
+- [ ] Update the name, description, and version in `package.json`.
+- [ ] Check the license and copyright notice in `LICENSE`.
+- [ ] Adapt the sample command and tests to your implementation.
+- [ ] Document supported and tested Pi versions and usage in the README.
+- [ ] Verify repository URLs and publishing settings. Include required files in `package.json` under `files` and register entry points in `pi.extensions`.
+- [ ] Run `npm install` to update the lockfile after changing dependencies.
 
-## 開発
+## Development
 
-開発と CI は `.nvmrc` に記載した Node.js 26.13.0 を使います。`engines` は Pi 1.5.0 の要件に合わせて Node.js 22.19.0 以降を指定していますが、テンプレートの自動テストは 26.13.0 で実行します。
+Development and CI use Node.js 26.13.0 from `.nvmrc`. The `engines` field follows Pi 1.5.0's minimum of Node.js 22.19.0. The template runs its automated tests on 26.13.0.
 
 ```sh
 npm run typecheck
@@ -33,11 +33,11 @@ npm test
 npm run check:package
 ```
 
-テストは Node.js の組み込みテストランナーを使います。`tests/pi-smoke.test.ts` は Pi 本体のリソースローダーで extension を読み込み、`/hello` の登録を確認します。LLM やユーザーの Pi 設定には接続せず、一時ディレクトリを使います。配布時の起動確認は `npm run test:startup` で実行できます。`npm run check:package` と CI でも、作成した tarball を一時環境の設定に登録し、実際の Pi CLI をオフラインの RPC モードで起動します。パッケージ警告、読み込み失敗、期待するコマンドの登録漏れがあれば失敗します。サンプルを変更したら、ローダーテストと `package.json` の `test:startup` に記載したコマンド名を更新してください。Pi の API やイベントについては [公式 extension ドキュメント](https://github.com/badlogic/pi-mono/blob/main/packages/coding-agent/docs/extensions.md) を参照してください。
+Tests use Node's built-in runner. `tests/pi-smoke.test.ts` loads the extension with Pi's resource loader and verifies registration of `/hello`. It uses a temporary directory without a live LLM or the user's Pi settings. Run `npm run test:startup` to check startup from the packaged distribution. In `npm run check:package` and CI, a temporary Pi configuration loads the generated tarball and starts the Pi CLI in offline RPC mode. Package warnings, load failures, and missing command registrations fail the check. When replacing the sample, update the expected command in the loader test and in `test:startup` in `package.json`. See the [official extension documentation](https://github.com/badlogic/pi-mono/blob/main/packages/coding-agent/docs/extensions.md) for Pi APIs and events.
 
-### テストヘルパー
+### Test helpers
 
-`tests/helpers/mock-pi.ts` の `createMockPi()` は、外部のテストライブラリを使わずに extension を単体テストするための部分的なモックです。
+`createMockPi()` in `tests/helpers/mock-pi.ts` provides a partial Pi mock for unit tests without an external test library.
 
 ```ts
 const mock = createMockPi({ confirm: [true], input: ["answer"], select: ["A"] });
@@ -46,15 +46,15 @@ await mock.runCommand("hello", "arguments");
 assert.deepEqual(mock.notifications, [{ message: "Hello from your Pi extension!", type: "info" }]);
 ```
 
-`mock.commands` と `mock.tools` から登録内容を取得できます。`mock.dialogs` はダイアログの内容を、`mock.statuses` と `mock.widgets` は表示中の値を保持します。`mock.responses.select.push("A")` のように、作成後も回答を追加できます。`mock.userMessages` と `mock.messages` は送信要求を記録しますが、エージェントのターンは開始しません。`pi.appendEntry` は Pi のインメモリ `sessionManager` に記録します。`mock.emit("session_start", { type: "session_start" })` は登録順にイベントハンドラーを実行し、戻り値の配列を返します。`mock.context` はハンドラーやツールを直接呼び出すときに使えます。ダイアログの回答は種類ごとに指定順で消費され、回答が不足するとエラーになります。`mock.sessionManager` は分岐操作にも使えます。`mock.emit(name, event, context)` に context を渡すとイベントごとに変更できます。`mock.setIdle()`・`mock.setPending()`、`mock.emittedEvents`、`mock.toolRenderers` で状態や登録を検証できます。各テストで `createMockPi()` を呼び、状態を分離してください。
+Inspect registrations via `mock.commands` and `mock.tools`. `mock.dialogs` records dialogs, and `mock.statuses` and `mock.widgets` hold current values. Queue more responses after setup with `mock.responses.select.push("A")`. `mock.userMessages` and `mock.messages` record send requests without starting a turn. `pi.appendEntry` writes to the in-memory Pi `sessionManager`. `mock.emit("session_start", { type: "session_start" })` runs handlers in registration order and returns their results. Use `mock.context` to call handlers and tools directly, or pass a per-event context to `mock.emit(name, event, context)`. Dialogs consume responses in order by type and fail when a response is missing. Use `mock.sessionManager` for branching, `mock.setIdle()` and `mock.setPending()` to configure state, and `mock.emittedEvents` and `mock.toolRenderers` to inspect registration and behavior. Create a fresh mock per test.
 
-ダイアログの回答には `Promise` も指定できます。待機中に `AbortSignal` が中断されると、選択・入力は `undefined`、確認は `false` を返します。タイムアウトや実際の UI の描画は再現しません。
+Dialog responses can be promises. If an `AbortSignal` fires while waiting, select and input resolve to `undefined` and confirm resolves to `false`. The mock does not simulate timeouts or render the UI.
 
-このヘルパーは Pi API の一部だけを模擬します。ウィジェットは文字列配列のみ対応し、コンポーネント描画やツールのスキーマ検証、メッセージ送信後のエージェント動作は再現しません。必要な API をテストに合わせて追加し、Pi 本体への読み込みも別途確認してください。
+The helper covers part of the Pi API. Widgets support string arrays. Component rendering, tool schema validation, and agent behavior after message delivery require separate checks. Extend the helper for APIs your tests need and check loading in Pi itself.
 
-### モデル応答のフェイク
+### Fake model responses
 
-`tests/helpers/fake-model.ts` の `createFakeModel()` は、実際の Pi セッションに接続するテスト向けです。テキストやツール呼び出しを順に返し、プロバイダーへのネットワーク呼び出しは行いません。応答が足りない場合はエラーになります。スクリプトとリクエストは複製するため、元のオブジェクトへの後からの変更は記録に影響しません。
+Use `createFakeModel()` from `tests/helpers/fake-model.ts` with real Pi test sessions. It returns text and tool calls in order without provider network requests. Running out of responses raises an error. It clones scripts and requests so subsequent mutations cannot change the record.
 
 ```ts
 const fake = createFakeModel([
@@ -66,18 +66,18 @@ await session.prompt("Say hello");
 assert.equal(fake.requests.length, 1);
 ```
 
-セッションの生成と後片付けを含む例や、ツールを呼ぶ例は `tests/fake-model.test.ts` を参照してください。各応答に `waitFor: promise` を指定すると、その Promise が解決するまで応答を保留できます。待機中の `AbortSignal` も処理します。これは簡易フェイクであり、逐次ストリーミングや実際のプロバイダーの通信・認証は再現しません。
+See `tests/fake-model.test.ts` for session setup, cleanup, and tool-call examples. Add `waitFor: promise` to delay a response until the promise resolves. The fake also handles `AbortSignal` while waiting. It does not emulate incremental streaming, provider transport, or authentication.
 
-## インストール
+## Installation
 
-GitHub に公開した後、利用者は次のようにインストールできます。
+After publishing on GitHub, users can install the extension as follows.
 
 ```sh
 pi install git:github.com/<owner>/<repository>
 ```
 
-npm に公開する場合は、パッケージ名や公開設定を確認してから公開してください。Pi パッケージの詳細は [公式ドキュメント](https://github.com/badlogic/pi-mono/blob/main/packages/coding-agent/docs/packages.md) を参照してください。
+Before publishing to npm, check package naming and publication settings. See the [Pi package documentation](https://github.com/badlogic/pi-mono/blob/main/packages/coding-agent/docs/packages.md).
 
-## ライセンス
+## License
 
-MIT。詳細は [LICENSE](LICENSE) を参照してください。
+See [LICENSE](LICENSE) for the MIT License.
